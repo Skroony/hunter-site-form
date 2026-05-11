@@ -264,7 +264,82 @@ export default function App() {
 
   const next   = () => { if (validate()) setStep(s => Math.min(s+1, STEPS.length-1)); };
   const back   = () => { setErrors({}); setStep(s => Math.max(s-1, 0)); };
-  const submit = () => { if (validate()) setSubmitted(true); };
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const submit = async () => {
+    if (!validate()) return;
+    setSubmitting(true);
+    setSubmitError("");
+
+    // Build a readable payload for Formspree
+    const addr = [form.siteStreet, form.siteCity, form.siteState, form.siteZip].filter(Boolean).join(", ");
+    const fanSummary = form.fanConfigs.map((c, i) =>
+      `Config ${i+1}: ${c.model ? FAN_LABELS[c.model] : "?"} | Qty: ${c.qty} | ${c.diameter ? c.diameter.replace("ft"," ft.") : "?"} | ${c.voltage} | ${c.downrod}`
+    ).join("\n");
+
+    const payload = {
+      // Contact
+      "Company Name":         form.companyName,
+      "Site Address":         addr,
+      "Sales Representative": form.salesRep,
+      "Quote / Order Number": form.quoteNumber,
+      "Primary Contact":      `${form.primaryFirst} ${form.primaryLast}`,
+      "Primary Phone":        form.primaryPhone,
+      "Primary Email":        form.primaryEmail,
+      "Secondary Contact":    `${form.secondaryFirst} ${form.secondaryLast}`.trim() || "N/A",
+      "Secondary Phone":      form.secondaryPhone || "N/A",
+      // Site Access
+      "Access Days":          Object.entries(form.accessDays).filter(([,v])=>v).map(([k])=>k).join(", "),
+      "Access Times":         form.accessTimes,
+      "After-Hours Required": form.afterHours === "yes" ? `Yes — ${form.afterHoursDetails}` : "No",
+      "Preferred Months":     form.preferredMonths || "Any",
+      "Safety Brief":         form.safetyBrief === "yes" ? `Yes — ${form.safetyDuration}` : "No",
+      "PPE Required":         form.ppe === "yes" ? `Yes — ${form.ppeList}` : "No",
+      "Paperwork Required":   form.paperwork === "yes" ? `Yes — ${form.paperworkList}` : "No",
+      // Fan Details
+      "Fan Configurations":   fanSummary || "None",
+      "Total Fans":           String(form.fanConfigs.reduce((s,c) => s + (parseInt(c.qty)||0), 0)),
+      "Mounting Kits":        Object.entries(form.mountingKit).filter(([,v])=>v).map(([k])=>k).join(", ") || "None",
+      // Installation
+      "Ceiling Height":       form.ceilingHeight,
+      "Lift Required":        form.hunterLift === "yes" ? `Yes — ${form.liftType}` : `No — ${form.liftType}`,
+      "Ceiling Structure":    form.ceilingStructure === "Other" ? `Other: ${form.ceilingOther}` : form.ceilingStructure,
+      "Obstructions":         form.obstructions === "yes" ? `Yes — ${form.obstructionDetails}` : "No",
+      "Existing Fans":        form.existingFans === "yes" ? `Yes — ${form.existingFansDetails}` : "No",
+      // Controls
+      "Controls 1:1":         form.controls11 === "yes" ? "Yes" : "No",
+      "Controllers":          Object.entries(form.controllerTypes).filter(([,v])=>v).map(([k])=>k).join(", ") || "None",
+      "Controller Qty":       form.controllerQty,
+      "Distance Exceeds 100ft": form.distanceExceeds === "yes" ? `Yes — ${form.distanceRange}` : "No",
+      "Daisy Chain":          form.daisyChain,
+      // Electrical
+      "Spare Breakers":       form.spareBreakers === "yes" ? `Yes — ${form.breakerDetails}` : form.spareBreakers === "no" ? `No — Space to add: ${form.spaceToAdd}` : "Unsure",
+      "Panel Manufacturer":   form.panelManufacturer || "N/A",
+      "Conduit Required":     form.conduitRequired === "yes" ? `Yes — ${form.conduitType}` : "No",
+      "Fire Wire":            form.fireWire === "yes" ? "Yes" : "No",
+      // Notes
+      "Additional Notes":     form.additionalNotes || "None",
+      "Signed By":            form.signatureName,
+    };
+
+    try {
+      const res = await fetch("https://formspree.io/f/mdabypvb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        setSubmitError("Something went wrong. Please try again or call (629) 260-3600.");
+      }
+    } catch {
+      setSubmitError("Network error. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // ─────────────────────────────────────────────────────────
   // Steps called as plain functions — not <Components />.
@@ -1064,9 +1139,13 @@ export default function App() {
                 background:G.mid, color:G.white, fontFamily:"'Barlow',sans-serif",
                 fontWeight:700, fontSize:14, cursor:"pointer",
                 boxShadow:"0 2px 8px rgba(200,16,46,.35)" }}>
-              {step === STEPS.length-1 ? "Submit Form ✓" : "Continue →"}
+              {step === STEPS.length-1 ? (submitting ? "Submitting..." : "Submit Form ✓") : "Continue →"}
             </button>
           </div>
+          {submitError && (
+            <p style={{ marginTop:16, fontFamily:"'Barlow',sans-serif", fontSize:13,
+              color:G.warn, textAlign:"center" }}>{submitError}</p>
+          )}
         </div>
       </div>
     </div>
