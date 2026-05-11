@@ -156,6 +156,10 @@ const defaultForm = {
   conduitRequired:"no", conduitType:"",
   fireWire:"",
 
+  mountingPhotos:[],
+  electricalPhotos:[],
+  supportingPhotos:[],
+
   additionalNotes:"",
   permitAck:false, mechAck:false,
   signatureName:"",
@@ -192,6 +196,30 @@ export default function App() {
     configs[idx]  = { ...configs[idx], [field]: val };
     return { ...f, fanConfigs: configs };
   });
+
+  // ── Cloudinary photo upload ───────────────────────────────
+  const [uploading, setUploading] = useState({});
+
+  const uploadPhotos = async (files, field) => {
+    if (!files.length) return;
+    setUploading(u => ({ ...u, [field]: true }));
+    const urls = [];
+    for (const file of Array.from(files)) {
+      const data = new FormData();
+      data.append("file", file);
+      data.append("upload_preset", "demanddrop_site_photos");
+      try {
+        const res  = await fetch("https://api.cloudinary.com/v1_1/dcsvefi2y/image/upload", { method:"POST", body:data });
+        const json = await res.json();
+        if (json.secure_url) urls.push(json.secure_url);
+      } catch { /* skip failed uploads */ }
+    }
+    setForm(f => ({ ...f, [field]: [...f[field], ...urls] }));
+    setUploading(u => ({ ...u, [field]: false }));
+  };
+
+  const removePhoto = (field, idx) =>
+    setForm(f => ({ ...f, [field]: f[field].filter((_,i) => i !== idx) }));
 
   // ── Validation ────────────────────────────────────────────
   const validate = () => {
@@ -244,6 +272,7 @@ export default function App() {
       if (form.ceilingStructure === "Other" && !form.ceilingOther.trim()) e.ceilingOther = "Required when Other is selected";
       if (form.obstructions === "yes"  && !form.obstructionDetails.trim()) e.obstructionDetails  = "Required — describe the obstructions";
       if (form.existingFans === "yes"  && !form.existingFansDetails.trim()) e.existingFansDetails = "Required — describe the fans to be removed";
+      if (form.mountingPhotos.length === 0) e.mountingPhotos = "At least one mounting location photo is required for scheduling";
     }
 
     if (step === 4) {
@@ -321,6 +350,9 @@ export default function App() {
       // Notes
       "Additional Notes":     form.additionalNotes || "None",
       "Signed By":            form.signatureName,
+      "Mounting Photos":      form.mountingPhotos.length   > 0 ? form.mountingPhotos.join("\n")   : "None",
+      "Electrical Photos":    form.electricalPhotos.length > 0 ? form.electricalPhotos.join("\n") : "None",
+      "Supporting Photos":    form.supportingPhotos.length > 0 ? form.supportingPhotos.join("\n") : "None",
     };
 
     try {
@@ -787,7 +819,60 @@ export default function App() {
         )}
       </Field>
 
-      <Note>📸 Please provide supporting photos with your submission (fan placement drawings, existing fans, etc.).</Note>
+      {/* Mounting photos — required */}
+      <Field>
+        <Label required>Mounting Location Photos</Label>
+        <p style={{ margin:"0 0 10px", fontFamily:"'Barlow',sans-serif", fontSize:13, color:G.muted }}>
+          Please upload photos showing the full floor-to-ceiling structure at each fan mounting point. Required for scheduling.
+        </p>
+        <label style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"10px 20px",
+          borderRadius:8, border:`1.5px solid ${G.mid}`, background:G.pale, cursor:"pointer",
+          fontFamily:"'Barlow',sans-serif", fontWeight:700, fontSize:14, color:G.mid }}>
+          {uploading.mountingPhotos ? "Uploading..." : "📷 Upload Photos"}
+          <input type="file" accept="image/*" multiple style={{ display:"none" }}
+            onChange={e => uploadPhotos(e.target.files, "mountingPhotos")} />
+        </label>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:12 }}>
+          {form.mountingPhotos.map((url, i) => (
+            <div key={i} style={{ position:"relative" }}>
+              <img src={url} alt={`mounting ${i+1}`}
+                style={{ width:80, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${G.border}` }} />
+              <button onClick={() => removePhoto("mountingPhotos", i)}
+                style={{ position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:"50%",
+                  border:"none", background:G.warn, color:G.white, fontSize:12,
+                  cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+            </div>
+          ))}
+        </div>
+        <ErrorMsg msg={errors.mountingPhotos} />
+      </Field>
+
+      {/* Supporting photos — optional */}
+      <Field>
+        <Label>Supporting Photos <span style={{ fontWeight:400, color:G.muted }}>(optional)</span></Label>
+        <p style={{ margin:"0 0 10px", fontFamily:"'Barlow',sans-serif", fontSize:13, color:G.muted }}>
+          Fan placement drawings, existing fans to be removed, or any other relevant site photos.
+        </p>
+        <label style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"10px 20px",
+          borderRadius:8, border:`1.5px solid ${G.border}`, background:G.white, cursor:"pointer",
+          fontFamily:"'Barlow',sans-serif", fontWeight:700, fontSize:14, color:G.gray }}>
+          {uploading.supportingPhotos ? "Uploading..." : "📷 Upload Photos"}
+          <input type="file" accept="image/*" multiple style={{ display:"none" }}
+            onChange={e => uploadPhotos(e.target.files, "supportingPhotos")} />
+        </label>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:12 }}>
+          {form.supportingPhotos.map((url, i) => (
+            <div key={i} style={{ position:"relative" }}>
+              <img src={url} alt={`supporting ${i+1}`}
+                style={{ width:80, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${G.border}` }} />
+              <button onClick={() => removePhoto("supportingPhotos", i)}
+                style={{ position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:"50%",
+                  border:"none", background:G.warn, color:G.white, fontSize:12,
+                  cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+            </div>
+          ))}
+        </div>
+      </Field>
     </>
   );
 
@@ -909,7 +994,32 @@ export default function App() {
         </div>
       </Field>
 
-      <Note>📸 Include photos of your electrical panel and a building drawing with panel locations. Ensure photos show breakers, labels, and manufacturer tags.</Note>
+      {/* Electrical photos */}
+      <Field>
+        <Label>Electrical Panel Photos & Building Drawing <span style={{ fontWeight:400, color:G.muted }}>(optional)</span></Label>
+        <p style={{ margin:"0 0 10px", fontFamily:"'Barlow',sans-serif", fontSize:13, color:G.muted }}>
+          Include photos of your electrical panel showing breakers, labels, and manufacturer tags, plus a building drawing with panel locations.
+        </p>
+        <label style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"10px 20px",
+          borderRadius:8, border:`1.5px solid ${G.border}`, background:G.white, cursor:"pointer",
+          fontFamily:"'Barlow',sans-serif", fontWeight:700, fontSize:14, color:G.gray }}>
+          {uploading.electricalPhotos ? "Uploading..." : "📷 Upload Photos"}
+          <input type="file" accept="image/*" multiple style={{ display:"none" }}
+            onChange={e => uploadPhotos(e.target.files, "electricalPhotos")} />
+        </label>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:12 }}>
+          {form.electricalPhotos.map((url, i) => (
+            <div key={i} style={{ position:"relative" }}>
+              <img src={url} alt={`electrical ${i+1}`}
+                style={{ width:80, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${G.border}` }} />
+              <button onClick={() => removePhoto("electricalPhotos", i)}
+                style={{ position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:"50%",
+                  border:"none", background:G.warn, color:G.white, fontSize:12,
+                  cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+            </div>
+          ))}
+        </div>
+      </Field>
     </>
   );
 
