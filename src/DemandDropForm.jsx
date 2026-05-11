@@ -1152,8 +1152,7 @@ export default function App() {
         </h1>
         <p style={{ fontFamily:"'Barlow',sans-serif", color:G.muted, fontSize:15, lineHeight:1.7, margin:"0 0 24px" }}>
           Thank you, <strong>{form.signatureName}</strong>. The site assessment for{" "}
-          <strong>{form.companyName}</strong> has been received.
-          Your Demand Drop representative <strong>{form.salesRep}</strong> will follow up shortly.
+          <strong>{form.companyName}</strong> has been received. Your Demand Drop team will follow up shortly.
         </p>
         <p style={{ fontFamily:"'Barlow',sans-serif", color:G.muted, fontSize:13 }}>
           Questions? Call <strong>(629) 260-3600</strong>
